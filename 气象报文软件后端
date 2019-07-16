@@ -1,0 +1,207 @@
+# -*- coding: utf-8 -*-
+import requests
+import time
+import sqlite3
+import random
+
+def 存储数据(机场名,机场四字码,发布时间,风向风速,能见度,气温,气压,备降场四字码,云高,云高标准):
+    conn = sqlite3.connect('data.db')
+    c = conn.cursor()
+    查询语句="""select ID from 机场天气报文 where 机场四字码 ='{}' and 发布时间 = '{}'""".format(机场四字码,发布时间)
+    c.execute(查询语句)
+    查询结果=c.fetchone()
+    if not 查询结果:
+        存储语句="""INSERT INTO 机场天气报文 (机场名,机场四字码,发布时间,风向风速,能见度,气温,气压,备降场四字码,云高,云高标准)VALUES('{}','{}','{}','{}','{}','{}','{}','{}','{}','{}')""".format(机场名,机场四字码,发布时间,风向风速,能见度,气温,气压,备降场四字码,云高,云高标准)
+        c.execute(存储语句)
+        conn.commit()
+    conn.close()
+
+def 获取备降场四字码(机场四字码列,机场四字码):
+    机场四字码索引=机场四字码列.index(机场四字码)
+    if 机场四字码索引<len(机场四字码列)-1:
+        备降场四字码=机场四字码列[机场四字码索引+1]
+    else:
+        备降场四字码 = 机场四字码列[机场四字码索引 -1]
+    return 备降场四字码
+def 生成时间(观测时间码):
+
+    现在国际年月=time.strftime("%Y-%m-", time.localtime(time.time()-28800))
+    发布国际时间="{}{} {}:{}:00".format(现在国际年月,观测时间码[0:2],观测时间码[2:4],观测时间码[4:-1])
+
+    return 发布国际时间
+def 生成风向风速(风向风速码):
+    风向风速码=风向风速码.split("G")[0]
+    if 风向风速码[:3].isdigit():
+        风向风速=str(int(风向风速码[:3]))+"度风 "+str(int(风向风速码[3:5]))+"米每秒"
+    else:
+        风向风速="风向不定 "+str(int(风向风速码[3:5]))+"米每秒"
+    return 风向风速
+def 获取headers():
+    user_agent_list = [ \
+        "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.1 (KHTML, like Gecko) Chrome/22.0.1207.1 Safari/537.1",
+        "Mozilla/5.0 (X11; CrOS i686 2268.111.0) AppleWebKit/536.11 (KHTML, like Gecko) Chrome/20.0.1132.57 Safari/536.11",
+        "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/536.6 (KHTML, like Gecko) Chrome/20.0.1092.0 Safari/536.6", \
+        "Mozilla/5.0 (Windows NT 6.2) AppleWebKit/536.6 (KHTML, like Gecko) Chrome/20.0.1090.0 Safari/536.6",
+        "Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.1 (KHTML, like Gecko) Chrome/19.77.34.5 Safari/537.1",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/536.5 (KHTML, like Gecko) Chrome/19.0.1084.9 Safari/536.5",
+        "Mozilla/5.0 (Windows NT 6.0) AppleWebKit/536.5 (KHTML, like Gecko) Chrome/19.0.1084.36 Safari/536.5",
+        "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/536.3 (KHTML, like Gecko) Chrome/19.0.1063.0 Safari/536.3",
+        "Mozilla/5.0 (Windows NT 5.1) AppleWebKit/536.3 (KHTML, like Gecko) Chrome/19.0.1063.0 Safari/536.3", \
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_8_0) AppleWebKit/536.3 (KHTML, like Gecko) Chrome/19.0.1063.0 Safari/536.3", \
+        "Mozilla/5.0 (Windows NT 6.2) AppleWebKit/536.3 (KHTML, like Gecko) Chrome/19.0.1062.0 Safari/536.3", \
+        "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/536.3 (KHTML, like Gecko) Chrome/19.0.1062.0 Safari/536.3", \
+        "Mozilla/5.0 (Windows NT 6.2) AppleWebKit/536.3 (KHTML, like Gecko) Chrome/19.0.1061.1 Safari/536.3", \
+        "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/536.3 (KHTML, like Gecko) Chrome/19.0.1061.1 Safari/536.3", \
+        "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/536.3 (KHTML, like Gecko) Chrome/19.0.1061.1 Safari/536.3", \
+        "Mozilla/5.0 (Windows NT 6.2) AppleWebKit/536.3 (KHTML, like Gecko) Chrome/19.0.1061.0 Safari/536.3", \
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/535.24 (KHTML, like Gecko) Chrome/19.0.1055.1 Safari/535.24", \
+        "Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/535.24 (KHTML, like Gecko) Chrome/19.0.1055.1 Safari/535.24"]
+    ua = random.choice(user_agent_list)
+    headers = {'User-Agent': ua, 'Referer': "http://report.qdatm.net/"}
+    return headers
+def 获取源码(网址):
+    while True:
+        try:
+            源码 = requests.get(网址, headers=获取headers())
+            return 源码
+        except:
+            time.sleep(random.randint(50, 90))
+def 获取云高标准值(机场四字码):
+    云高标准={"ZBAA":"900","ZBTJ":"862","ZBYN":"1662","ZGGG":"872","ZHCC":"1012","ZJSY":"894","ZLXY":"1336","ZPPP":"2963","ZSAM":"877",
+          "ZSHC":"867","ZSNJ":"873","ZSPD":"864","ZSSS":"862","ZUCK":"1272","ZUUU":"1358","ZYTX":"917","ZHHH":"889","ZSQD":"885",
+          "ZYTL":"948","ZJHK":"883","ZPLJ":"3180","ZSFZ":"871","ZSOF":"926","ZSYT":"907","ZWWW":"1508","ZUGY":"1999","ZSNB":"869",
+          "ZBSJ":"931","ZGHA":"925","ZGKL":"1034"}
+    return 云高标准[机场四字码]
+def 开始抓取():
+    机场四字码集 = "ZBAA,ZBTJ,ZBYN,ZGGG,ZHCC,ZJSY,ZLXY,ZPPP,ZSAM,ZSHC,ZSNJ,ZSPD,ZSSS,ZUCK,ZUUU,ZYTX,ZHHH,ZSQD,ZYTL,ZJHK,ZPLJ,ZSFZ,ZSOF,ZSYT,ZWWW,ZUGY,ZSNB,ZBSJ,ZGHA,ZGKL"
+    机场四字码列 = 机场四字码集.split(",")
+    查询网址 = "http://report.qdatm.net/content.aspx?tt=SA,FT,WS&obcc={}&includeBak=False&lastestCount=1&IPs=".format(机场四字码集)
+
+    while True:
+        print("正在抓取数据中...")
+
+        time.sleep(random.randint(50, 90))
+        源码=获取源码(查询网址).text
+        源码=源码.split("WS报文")[0]
+        源码=源码.split("\n")[2:-1]
+        for  i in 源码:
+            报文=i.split("<BR/>")
+            机场名=报文[0][4:]
+            机场四字码 = 报文[0][:4]
+            if not 机场四字码.isalpha():
+                continue
+            备降场四字码 = 获取备降场四字码(机场四字码列, 机场四字码)
+            云高标准 = 获取云高标准值(机场四字码)
+            报文=报文[1].split()
+            报文 = 报文[2:]
+            for ii in 报文:
+                if len(ii) > 2:
+                    if len(ii)==7 and ii[-1]=="Z":
+                        发布时间 = 生成时间(ii)
+                    elif ii[-3:]=="MPS":
+                        风向风速 = 生成风向风速(ii)
+                    elif ii == "CAVOK":
+                        能见度="9999米"
+                        云高="1500米"
+                    elif len(ii)==4 and ii.isdigit():
+                        能见度=str(int(ii))+"米"
+                    elif ii=="NSC":
+                        云高="1500米"
+                    elif ii[:3]=="FEW" or ii[:3]=="SCT" or ii[:3]=="BKN" or ii[:3]=="OVC":
+                        if len(ii)==6:
+                            云高=str(int(ii[3:])*30)+"米"
+                        else:云高=str(int(ii[3:6])*30)+"米"
+                    elif ii[2]=="/":
+                        温度码=ii.split("/")
+                        气温=str(int(温度码[0]))+"摄氏度,"
+                        if 温度码[1][0]=="M":
+                            气温=气温+"露点-"+str(int(温度码[1][1:]))+"摄氏度"
+                        else: 气温=气温+"露点"+str(int(温度码[1]))+"摄氏度"
+                    elif ii[0]=="Q" and ii[1:].isdigit():
+                        气压=str(int(ii[1:]))+"百帕"
+                        break
+            #print(机场名)
+            存储数据(机场名, 机场四字码, 发布时间, 风向风速, 能见度, 气温, 气压, 备降场四字码,云高,云高标准)
+def 数据库查询备用机场(备用机场四字码):
+    conn = sqlite3.connect('data.db')
+    c = conn.cursor()
+    备用机场查询语句 = """select * from 机场天气报文  where 机场四字码 ='{}'order by ID desc limit 1""".format(备用机场四字码)
+    c.execute(备用机场查询语句)
+    查询结果 = c.fetchmany(1)
+    备用机场云高标准 =str(int(查询结果[0][9]) - 800 + 60)
+    备用机场表 = '{'+'''机场名="{}";发布时间="{}";风向风速="{}";能见度="{}";气温="{}";气压="{}";云高="{}";云高标准="{}"'''.format(查询结果[0][1],查询结果[0][3],查询结果[0][4],查询结果[0][5],查询结果[0][6],查询结果[0][7],查询结果[0][8],备用机场云高标准)+'}'
+
+    备用机场能见度查询语句="""select 能见度,发布时间,云高 from 机场天气报文  where 机场四字码 ='{}'order by ID desc limit 8""".format(备用机场四字码)
+    c.execute(备用机场能见度查询语句)
+    查询结果 = c.fetchmany(8)
+    查询结果.reverse()
+    备用机场能见度集="{"
+    for i in 查询结果:
+        备用机场能见度集=备用机场能见度集+i[0][:-1]+";"
+    备用机场能见度集=备用机场能见度集+"}"
+    备用机场查询时间集 = "{"
+    for i in 查询结果:
+        备用机场查询时间集 = 备用机场查询时间集 + '"'+i[1][-8:-3] +'"'+ ";"
+    备用机场查询时间集 = 备用机场查询时间集 + "}"
+    备用机场云高集 = "{"
+    备用机场云高标准集="{"
+    for i in 查询结果:
+        备用机场云高集 = 备用机场云高集 + '"'+i[2][:-1] +'"'+ ";"
+        备用机场云高标准集 = 备用机场云高标准集  + 备用机场云高标准 +  ";"
+    备用机场云高集 = 备用机场云高集 + "}"
+    备用机场云高标准集 = 备用机场云高标准集 + "}"
+    conn.close()
+    return  备用机场表,备用机场能见度集,备用机场查询时间集,备用机场云高集,备用机场云高标准集
+def 数据库查询(机场四字码):
+    if len(机场四字码)!=4 or 机场四字码.isalpha() != True:
+        return 1
+    机场四字码=机场四字码.upper()
+    conn = sqlite3.connect('data.db')
+    c = conn.cursor()
+    目的机场查询语句 = """select * from 机场天气报文  where 机场四字码 ='{}'order by ID desc limit 1""".format(机场四字码)
+    c.execute(目的机场查询语句)
+    查询结果 = c.fetchmany(1)
+    if len(查询结果)==0:
+        conn.close()
+        return 0
+    else:
+        目的机场云高标准 = str(int(查询结果[0][9])-800+60)
+        目的机场表='{'+'''机场名="{}";发布时间="{}";风向风速="{}";能见度="{}";气温="{}";气压="{}";云高="{}";云高标准="{}"'''.format(查询结果[0][1],查询结果[0][3],查询结果[0][4],查询结果[0][5],查询结果[0][6],查询结果[0][7],查询结果[0][8],目的机场云高标准)+'}'
+
+        备用机场四字码=查询结果[0][-1]
+        目的机场能见度查询语句 = """select 能见度,发布时间,云高 from 机场天气报文  where 机场四字码 ='{}'order by ID desc limit 8""".format(机场四字码)
+        c.execute(目的机场能见度查询语句)
+        查询结果 = c.fetchmany(8)
+        查询结果.reverse()  #将查询结果反转排序
+        目的机场能见度集 = "{"
+        目的机场能见度标准集 = "{"
+        for i in 查询结果:
+            目的机场能见度集 = 目的机场能见度集 + i[0][:-1] + ";"
+            目的机场能见度标准集 = 目的机场能见度标准集 + str(1600) + ";"
+        目的机场能见度集 = 目的机场能见度集 + "}"
+        目的机场能见度标准集 = 目的机场能见度标准集 + "}"
+        目的机场查询时间集="{"
+        for i in 查询结果:
+            目的机场查询时间集 = 目的机场查询时间集 + '"'+i[1][-8:-3]+'"' + ";"
+        目的机场查询时间集 = 目的机场查询时间集 + "}"
+        目的机场云高集 = "{"
+        目的机场云高标准集="{"
+        for i in 查询结果:
+            目的机场云高集 = 目的机场云高集 +'"'+ i[2][:-1] + '"'+";"
+            目的机场云高标准集 = 目的机场云高标准集  + 目的机场云高标准 + ";"
+        目的机场云高集 = 目的机场云高集 + "}"
+        目的机场云高标准集 = 目的机场云高标准集 + "}"
+        conn.close()
+        备用机场表, 备用机场能见度集, 备用机场查询时间集, 备用机场云高集,备用机场云高标准集=数据库查询备用机场(备用机场四字码)
+
+        返回值="{"+目的机场表+";"+目的机场能见度集+";"+目的机场能见度标准集+";"+目的机场查询时间集+";"+目的机场云高集+";"+目的机场云高标准集+";"+备用机场表+";"+备用机场能见度集+";"+备用机场查询时间集+";"+备用机场云高集+";"+备用机场云高标准集+"}"
+        # print(目的机场云高标准集)
+        # print(备用机场云高标准集)
+        # # print(返回值)
+        return 返回值
+
+
+
+# 数据库查询("ZBAA")
+
+#开始抓取()
