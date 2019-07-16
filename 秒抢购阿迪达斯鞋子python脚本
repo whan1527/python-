@@ -1,0 +1,401 @@
+import requests
+import traceback
+import time
+import random
+import urllib3
+from urllib import parse
+from lxml import html
+urllib3.disable_warnings()
+商品地址="https://www.adidas.com.cn/hype/yeezy/FU7914"
+购买尺码集=["37","38","38.5","36","36.5","39"]
+开售时间="2019-06-15 10:00:00"
+开售时间=time.mktime(time.strptime(开售时间, "%Y-%m-%d %H:%M:%S"))
+class 阿迪达斯买鞋:
+    def __init__(self,商品地址,购买尺码集):
+
+        self.商品地址=商品地址
+        self.购买尺码=购买尺码集
+        self.网页请求会话 = requests.Session()
+        eyeofcloudEndUserId="oeu" + str(int(time.time() * 1000)) + "r0." + ''.join(str(random.choice(range(10))) for _ in range(16))
+        self.cookies数据字典={
+        "eyeofcloudSegments":"%7B%221%22%3A%22gc%22%2C%222%22%3A%22false%22%2C%223%22%3A%22direct%22%7D",
+        "eyeofcloudBuckets":"%7B%7D",
+        "eyeofcloudEndUserId":eyeofcloudEndUserId,
+        "firsttime":"first"}
+        self.获取XSRFTOKEN和Jo0OQK()               #取得 XSRF-TOKEN 和 _Jo0OQK 加入cookies数据字典
+        print(1)
+        self.获取cookieID()
+        print(2)
+        self.登陆账号()
+        print(3)
+        print("等待开抢")
+        while True:
+            现在时间=time.time()
+            if 现在时间+10>开售时间:
+                break
+            time.sleep(3)
+        鞋子商品号=self.取得鞋子编号()     #, 购买鞋子编号集
+        print(4)
+        鞋子购买编号=self.判断鞋子是否有货(鞋子商品号)      #, 购买鞋子编号集      #返回用于下单的鞋子编号,如果鞋子无货,返回False
+        print(5)
+        if 鞋子购买编号:
+            下单地址=self.获取下单地址(鞋子购买编号)
+            print(下单地址)
+            print(6)
+            收货信息=self.读取生成收货信息(下单地址)
+            print(7)
+            订单id=self.创建订单(下单地址,收货信息)
+            print(8)
+            self.提交订单(订单id,下单地址)            #下单地址格式为 https://www.adidas.com.cn/transaction/check?key=37d976ac-509d-493b-a5e5-82658f599fe023
+
+    def 请求网络数据(self, 网址, headers="", data="",请求方式=""):
+        源码读取次数 = 1
+        while True:
+            try:
+                if 请求方式=="post":
+                    源码 = self.网页请求会话.post(网址, data=data, headers=headers, timeout=10, verify=False)
+                else:
+
+                    源码 = self.网页请求会话.get(网址, headers=headers, timeout=10, verify=False)
+                return 源码
+            except:
+                traceback.print_exc()
+                print("{}读取异常正在进行第{}次重试".format(网址, 源码读取次数))
+                time.sleep(5)
+                源码读取次数 += 1
+    def 提交订单(self,订单id,下单地址):
+        网址="https://www.adidas.com.cn/payment/goToPaymentDirect.htm?subOrdinate={}&payType=6".format(订单id)      #payType=6 为支付宝付款,如需更改支付类型,读取生成收货信息函数中的支付类型也需修改
+        headers字符串="""Host: www.adidas.com.cn
+            Connection: keep-alive
+            Upgrade-Insecure-Requests: 1
+            User-Agent: Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.103 Safari/537.36
+            Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8
+            Accept-Encoding: gzip, deflate, br
+            Accept-Language: zh-CN,zh;q=0.9"""
+        headers = self.headers字符串处理(headers字符串)
+        Cookie字符串 = self.Cookie处理()
+        headers.update({"Referer": 下单地址})
+        headers.update({"Cookie": Cookie字符串})
+        返回内容 = self.请求网络数据(网址, headers=headers).text
+        print(返回内容)
+
+
+
+    def 创建订单(self,下单地址,收货信息):
+        网址="https://www.adidas.com.cn/transaction/create.json"
+        headers字符串="""Host: www.adidas.com.cn
+            Connection: keep-alive
+            Content-Length: 931
+            Accept: */*
+            Origin: https://www.adidas.com.cn
+            X-CSRF-TOKEN: 68850a3a-37d4-4c63-aa13-4f6433484bcd
+            X-Requested-With: XMLHttpRequest
+            User-Agent: Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.103 Safari/537.36
+            Content-Type: application/x-www-form-urlencoded; charset=UTF-8
+            Accept-Encoding: gzip, deflate, br
+            Accept-Language: zh-CN,zh;q=0.9"""
+        headers = self.headers字符串处理(headers字符串)
+        Cookie字符串 = self.Cookie处理()
+        headers.update({"X-CSRF-TOKEN": self.cookies数据字典["XSRF-TOKEN"]})
+        headers.update({"Referer": 下单地址})
+        headers.update({"Cookie": Cookie字符串})
+        返回内容 = self.请求网络数据(网址, headers=headers,data=收货信息,请求方式="post").text
+        返回内容=返回内容.replace("true","True").replace("false","False").replace("null","None")
+        返回内容=eval(返回内容)
+
+        订单id=返回内容["returnObject"]["subOrdinate"]
+        return 订单id
+    def 读取生成收货信息(self,下单地址):
+        下单key=下单地址.split("key=")[-1]    #下单地址格式 https://www.adidas.com.cn/transaction/check?key=37d976ac-509d-493b-a5e5-82658f599fe023
+        headers字符串="""
+            Host: www.adidas.com.cn
+            Connection: keep-alive
+            Upgrade-Insecure-Requests: 1
+            User-Agent: Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.103 Safari/537.36
+            Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8
+            Accept-Encoding: gzip, deflate, br
+            Accept-Language: zh-CN,zh;q=0.9"""
+        headers = self.headers字符串处理(headers字符串)
+        Cookie字符串 = self.Cookie处理()
+        headers.update({"Cookie": Cookie字符串})
+        headers.update({"Referer": self.商品地址})
+        返回内容 = self.请求网络数据(下单地址, headers=headers).text
+        返回内容=html.fromstring(返回内容)
+        地址数据字典=返回内容.xpath('//div[@class="address-item is-active"]/@data-address')[0]
+        地址数据字典=地址数据字典.replace("true","True")
+        地址数据字典=eval(地址数据字典)
+
+        收货信息={"shippingInfoSubForm.name":parse.quote(地址数据字典["name"]),
+              "shippingInfoSubForm.mobile":str(地址数据字典["mobile"]),
+              "shippingInfoSubForm.countryId":"1",
+              "shippingInfoSubForm.provinceId": str(地址数据字典["provinceId"]),
+              "shippingInfoSubForm.cityId": str(地址数据字典["cityId"]),
+              "shippingInfoSubForm.areaId": str(地址数据字典["areaId"]),
+              "shippingInfoSubForm.townId": str(地址数据字典["townId"]),
+              "shippingInfoSubForm.address": parse.quote(地址数据字典["address"]),
+              "shippingInfoSubForm.postcode": str(地址数据字典["postcode"]),
+              "shippingInfoSubForm.email": str(地址数据字典["email"]),
+              "shippingInfoSubForm.appointType":"1",
+              "appointType":"1",
+              "isDefault": "false",
+              "paymentInfoSubForm.paymentType":"6",          #付款类型6为支付宝付款
+              "invoiceInfoSubForm.isNeedInvoice":"false",
+              "invoiceInfoSubForm.invoiceType": "",
+              "invoiceInfoSubForm.invoiceTitle":"",
+              "invoiceInfoSubForm.companyAddress":"",
+              "invoiceInfoSubForm.companyPhone":"",
+              "invoiceInfoSubForm.accountBankName":"",
+              "invoiceInfoSubForm.accountBankNumber":"",
+              "invoiceInfoSubForm.taxPayerId" :"",
+              "couponInfoSubForm.couponCode" :"",
+              "crmCouponStr" :"",
+              "crmCouponIdStr" :"",
+              "key":下单key,
+              "staffId" :"",
+              "storeId" :"",
+              "clientIdentification":"3750086113"}            #疑问 待核实
+        return 收货信息
+
+    def 获取下单地址(self,鞋子购买编号):
+        网址="https://www.adidas.com.cn/transaction/immediatelybuy.json"
+        data={"skuId":鞋子购买编号,"count":1}          #count为下单数量
+        print(鞋子购买编号)
+        headers字符串="""
+            Host: www.adidas.com.cn
+            Connection: keep-alive
+            Content-Length: 19
+            Accept: */*
+            Origin: https://www.adidas.com.cn
+            X-Requested-With: XMLHttpRequest
+            User-Agent: Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.103 Safari/537.36
+            Content-Type: application/x-www-form-urlencoded; charset=UTF-8
+            Accept-Encoding: gzip, deflate, br
+            Accept-Language: zh-CN,zh;q=0.9"""
+        headers = self.headers字符串处理(headers字符串)
+        Cookie字符串 = self.Cookie处理()
+        headers.update({"Cookie": Cookie字符串})
+        headers.update({"X-CSRF-TOKEN": self.cookies数据字典["XSRF-TOKEN"]})
+        headers.update({"Referer": self.商品地址})
+        while True:
+            返回内容=self.请求网络数据(网址, headers=headers,data=data,请求方式="post").text
+            返回内容=返回内容.replace("true","True").replace("null","None").replace("false","False")
+
+            返回内容=eval(返回内容)
+            if 返回内容["result"]:
+                print("真",返回内容)
+                下单地址=返回内容["resultMessage"]["message"]
+                下单地址="https://www.adidas.com.cn"+下单地址
+                return 下单地址
+            else:
+                time.sleep(0.3)
+                print("假",返回内容)
+
+    def 判断鞋子是否有货(self,鞋子商品号):   #, 购买鞋子编号集
+        headers字符串="""
+            Host: www.adidas.com.cn
+            Connection: keep-alive
+            Accept: */*
+            X-Requested-With: XMLHttpRequest
+            User-Agent: Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.103 Safari/537.36
+            Accept-Encoding: gzip, deflate, br
+            Accept-Language: zh-CN,zh;q=0.9"""
+        headers=self.headers字符串处理(headers字符串)
+        headers = self.headers字符串处理(headers字符串=headers字符串)
+        Cookie字符串 = self.Cookie处理()
+        headers.update({"Cookie": Cookie字符串})
+        headers.update({"X-CSRF-TOKEN": self.cookies数据字典["XSRF-TOKEN"]})
+        headers.update({"Referer": self.商品地址})
+
+        网址="https://www.adidas.com.cn/getCurrentItemSkuIvts/{}.json?_={}".format(鞋子商品号,str(int(time.time()*1000)))
+        返回内容 = self.请求网络数据(网址, headers=headers).text.replace("\\","").replace("true","True").replace("false","False").replace("\"[","[").replace("]\"","]")
+        商品信息字典集=eval(返回内容)
+        if 商品信息字典集["isSoldOut"]:
+            print("商品全部卖完了")
+            return False
+        商品信息列集=商品信息字典集["skuStr"]
+        for 商品信息字典 in 商品信息列集:
+            if 商品信息字典["availableQty"]>0:
+
+                # for 有货商品编号 in 商品信息字典["properties"]:
+                #     if str(有货商品编号) in 购买鞋子编号集:
+                        return 商品信息字典["skuId"]
+
+
+        return False
+
+
+
+
+    def 取得鞋子编号(self):
+        headers字符串="""
+            Host: www.adidas.com.cn
+            Connection: keep-alive
+            Upgrade-Insecure-Requests: 1
+            User-Agent: Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.103 Safari/537.36
+            Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8
+            Accept-Encoding: gzip, deflate, br
+            Accept-Language: zh-CN,zh;q=0.9"""
+        headers=self.headers字符串处理(headers字符串=headers字符串)
+        Cookie字符串 = self.Cookie处理()
+        headers.update({"Cookie": Cookie字符串})
+        while True:
+            try:
+                返回内容=self.请求网络数据(self.商品地址,headers=headers).text
+                网页源码=html.fromstring(返回内容)
+                # 购买鞋子编号集=[]
+                # for 尺码 in 购买尺码集:
+                #     购买鞋子编号=网页源码.xpath('//li/a[text()={}]/../@ipi'.format(尺码))[0]
+                #     购买鞋子编号集.append(购买鞋子编号)
+                鞋子商品号=网页源码.xpath('//input[@id="itemId"]/@value')[0]
+                break
+            except:
+                print(返回内容)
+                time.sleep(1)
+        return 鞋子商品号#,购买鞋子编号集
+    def 登陆账号(self):
+        网址="https://www.adidas.com.cn/member/login.json"
+        data字符串="loginName=账号&password=密码&isRemberMeLoginName=false&NECaptchaValidate="
+        data=self.data字符串处理(data字符串)
+        Cookie字符串 = self.Cookie处理()
+        headers字符串="""
+        Host: www.adidas.com.cn
+        Connection: keep-alive
+        Content-Length: 87
+        Accept: */*
+        Origin: https://www.adidas.com.cn
+        X-Requested-With: XMLHttpRequest
+        User-Agent: Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.103 Safari/537.36
+        Content-Type: application/x-www-form-urlencoded; charset=UTF-8
+        Referer: https://www.adidas.com.cn/member/login?locale=zh_CN
+        Accept-Encoding: gzip, deflate, br
+        Accept-Language: zh-CN,zh;q=0.9"""
+        headers = self.headers字符串处理(headers字符串)
+        headers.update({"X-CSRF-TOKEN":self.cookies数据字典["XSRF-TOKEN"]})
+        headers.update({"Cookie": Cookie字符串})
+        self.请求网络数据(网址, headers=headers, data=data,请求方式="post")
+
+
+
+
+
+
+    def 获取cookieID(self):
+        '''
+        取得 adidas_recommend_cookie_keyzh_CN 和 JSESSIONID 和 recommend_tool_cookie_id_v1 加入cookies数据字典
+        '''
+        时间=str(int(time.time()*1000))
+        网址="https://www.adidas.com.cn/index/recommendedSearchKey.json?_="+时间
+        headers字符串 = """
+        Host: www.adidas.com.cn
+        Connection: keep-alive
+        Accept: */*
+        X-CSRF-TOKEN: null
+        X-Requested-With: XMLHttpRequest
+        User-Agent: Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.103 Safari/537.36
+        Referer: https://www.adidas.com.cn/
+        Accept-Encoding: gzip, deflate, br
+        Accept-Language: zh-CN,zh;q=0.9"""
+        headers = self.headers字符串处理(headers字符串)
+        处理内容列 = ["eyeofcloudEndUserId", "eyeofcloudSegments", "eyeofcloudBuckets","XSRF-TOKEN","firsttime"]
+        Cookie字符串 = self.Cookie处理(处理内容列=处理内容列)
+        headers.update({"Cookie": Cookie字符串})
+        返回内容=self.请求网络数据(网址, headers=headers).text[1:-1]
+
+        for i in 返回内容:
+            if self.is_Chinese(i):
+                b = "\\u" + str(i.encode('raw_unicode-escape'))[5:-1].upper()
+                返回内容 = 返回内容.replace(i, b, 1)
+        返回内容 = parse.quote(返回内容).replace("%5C", "%")            #将读取到的字符串以unicode_escape解码,转换成URL编码
+
+
+        self.cookies数据字典.update({"adidas_recommend_cookie_keyzh_CN":返回内容})
+        时间 = str(int(time.time() * 1000))
+        网址 = "https://www.adidas.com.cn/cookie/getCookieId?_="+时间
+        处理内容列 = ["eyeofcloudEndUserId", "eyeofcloudSegments", "eyeofcloudBuckets", "XSRF-TOKEN", "firsttime"]
+
+        self.网页请求会话.cookies.set("adidas_recommend_cookie_keyzh_CN",
+                                "%u4E24%u4EF6%u989D%u59169%u6298%2C%u62A2YEEZY%2CHOME%20OF%20CLASSICS%2C4D%2CClima%2CNite%20JOGGER%2CGame%20of%20Thrones%2Cultraboost%2Cyung%2096%2Csuperstar")
+        Cookie字符串 = self.Cookie处理(处理内容列=处理内容列)
+        headers.update({"Cookie": Cookie字符串})
+        self.请求网络数据(网址, headers=headers)
+        self.cookies数据字典.update(self.网页请求会话.cookies.get_dict())
+
+
+
+    def 获取XSRFTOKEN和Jo0OQK(self):
+        '''
+        #取得 XSRF-TOKEN 和 _Jo0OQK 加入cookies数据字典
+        '''
+        时间=str(int(time.time()*1000))
+        网址="https://www.adidas.com.cn/ping.json?"+时间
+
+        headers字符串="""
+        Host: www.adidas.com.cn
+        Connection: keep-alive
+        Content-Length: 0
+        Accept: */*
+        Origin: https://www.adidas.com.cn
+        X-Requested-With: XMLHttpRequest
+        User-Agent: Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.103 Safari/537.36
+        Referer: https://www.adidas.com.cn/
+        Accept-Encoding: gzip, deflate, br
+        Accept-Language: zh-CN,zh;q=0.9"""
+        headers=self.headers字符串处理(headers字符串)
+        处理内容列=["eyeofcloudSegments","eyeofcloudBuckets","eyeofcloudEndUserId"]
+        Cookie字符串=self.Cookie处理(处理内容列=处理内容列)
+        headers.update({"Cookie":Cookie字符串})
+        返回内容=self.请求网络数据(网址, headers=headers,请求方式="post")
+        self.cookies数据字典.update(self.网页请求会话.cookies.get_dict())
+
+
+    def Cookie处理(self,处理内容列=""):
+        Cookie字符串=""
+        #self.网页请求会话.cookies.clear()
+        for i in 处理内容列:
+            self.网页请求会话.cookies.set(i,self.cookies数据字典[i])
+        实时cookie字典=self.网页请求会话.cookies.get_dict()
+        for ii in 实时cookie字典:
+            Cookie字符串=Cookie字符串+ii+"="+实时cookie字典[ii]+";"
+        return Cookie字符串
+
+
+    def headers字符串处理(self,headers字符串):
+        '''
+        传入fiddler复制的headers,返回字典格式
+        '''
+        headers = {}
+        headers字符串 = headers字符串.split("\n")
+        for i in headers字符串:
+            if i:
+                headers.update({i.split(":", 1)[0].strip(): i.split(":", 1)[1].strip()})
+        return headers
+
+    def data字符串处理(self,data字符串):
+        '''
+        传入fiddler复制的data,返回字典
+        '''
+        data字符串 = data字符串.split("&")
+        data = {}
+        for i in data字符串:
+            if i:
+                字典组=i.split("=", 1)
+                if len(字典组)>1:
+                    字典={字典组[0].strip():字典组[1].strip()}
+                else:字典={字典组[0].strip():""}
+                data.update(字典)
+        return data
+
+    def is_Chinese(self,word):
+        '''
+        判断传入的内容是不是汉字,汉字返回True否则返回False
+        '''
+
+        if '\u4e00' <= word <= '\u9fff':
+            return True
+        return False
+
+开始=int(time.time()*1000)
+执行程序=阿迪达斯买鞋(商品地址,购买尺码集)
+print("执行时间",开始-int(time.time()*1000))
+
+
